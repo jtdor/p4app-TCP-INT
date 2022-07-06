@@ -48,6 +48,11 @@ static const char *tcp_int_doc =
     "(default = disabled)\n"
     "    tcp_int events-disable                         # Disables perf "
     "events\n"
+    "    tcp_int mock-enable                            # Enables sending mock "
+    "values if no real values were received (default = disabled)\n"
+    "    tcp_int mock-disable                           # Disables sending "
+    "mock "
+    "values\n"
     "    tcp_int disable                                # Disables tcp-int "
     "option handling\n"
     "    tcp_int unload                                 # Unloads all tcp_int "
@@ -550,6 +555,17 @@ static int tcp_int_events_enable(bool enable)
     }
 }
 
+static int tcp_int_mock_enable(bool enable)
+{
+    if (enable) {
+        return tcp_int_set_config(TCP_INT_CONFIG_KEY_MOCK_ENABLE,
+                                  TCP_INT_CONFIG_TRUE);
+    } else {
+        return tcp_int_set_config(TCP_INT_CONFIG_KEY_MOCK_ENABLE,
+                                  TCP_INT_CONFIG_FALSE);
+    }
+}
+
 static __u64 tcp_int_get_tp(struct tcp_int_event *e)
 {
     __u64 intv = e->rate_interval_us;
@@ -933,6 +949,10 @@ int main(int argc, char **argv)
         rv = tcp_int_events_enable(true);
     } else if (!strcmp(argv[1], "events-disable")) {
         rv = tcp_int_events_enable(false);
+    } else if (!strcmp(argv[1], "mock-enable")) {
+        rv = tcp_int_mock_enable(true);
+    } else if (!strcmp(argv[1], "mock-disable")) {
+        rv = tcp_int_mock_enable(false);
     } else {
         show_help();
     }

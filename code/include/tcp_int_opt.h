@@ -19,6 +19,12 @@ typedef struct uint24 tcp_int_lat;
 #define be24tohl(x) (x)
 #endif
 
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define htobe24l(x) (0xFFFFFFu & bpf_htonl(x))
+#else
+#define htobe24l(x) (0xFFFFFFu & (x))
+#endif
+
 #define TCP_INT_UTIL_BITSHIFT 3
 #define TCP_INT_QDEPTH_BITSHIFT 13
 #define TCP_INT_SWLAT_BITSHIFT 8

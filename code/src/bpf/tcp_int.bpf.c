@@ -9,6 +9,8 @@
 #include "tcp_int_common.bpf.h"
 #include "bits.bpf.h"
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
 /* TCP INT option definition */
 #define TCP_INT_OPT_KIND 0x72
 struct tcp_int_opt {
@@ -202,6 +204,17 @@ static inline int tcp_int_is_mode_hist(void)
     return 0;
 }
 
+static inline int tcp_int_is_mode_mock(void)
+{
+    int key = TCP_INT_CONFIG_KEY_MOCK_ENABLE;
+    tcp_int_config_value *ptr_enabled;
+
+    ptr_enabled = bpf_map_lookup_elem(&map_tcp_int_config, &key);
+    if (ptr_enabled)
+        return ptr_enabled->u64;
+    return 0;
+}
+
 static inline int tcp_int_is_mode_trace(void)
 {
     int key = TCP_INT_CONFIG_KEY_TRACE_ENABLE;
@@ -224,6 +237,79 @@ static inline int tcp_int_is_enabled(void)
     return 0;
 }
 
+static inline void tcp_int_do_process_tcpopt(struct bpf_sock_ops *skops,
+                                             struct tcp_int_state *istate,
+                                             struct tcp_int_opt *iopt)
+{
+    /* Request echo only if there is an update */
+    if (iopt->id) {
+        istate->intvalecr = iopt->intval;
+        istate->idecr = iopt->id;
+        istate->swlatecr.u24 = iopt->swlat.u24;
+        istate->pending_ecr = true;
+    }
+
+    /* Ignore local events with no updates */
+    if (iopt->idecr == 0) {
+        return;
+    }
+
+    istate->id = iopt->idecr;
+    istate->qdepth = tcp_int_ival_to_qdepth(iopt->intvalecr);
+    istate->util = tcp_int_ival_to_util(iopt->intvalecr);
+
+    if (tcp_int_is_enabled() && tcp_int_is_mode_hist()) {
+        tcp_int_update_hists(skops, iopt);
+    }
+    if (tcp_int_is_enabled() && tcp_int_is_mode_trace()) {
+        tcp_int_send_event(skops, iopt);
+    }
+}
+
+static inline void tcp_int_mock_tcpopt(struct bpf_sock_ops *skops,
+                                       struct tcp_int_state *istate)
+{
+    struct tcp_int_opt iopt = {};
+    struct bpf_tcp_sock *tp;
+    __u32 intval = 0;
+    __u32 swlat;
+
+    /* Do not mock values if we have real values pending for echo. */
+    if (istate->pending_ecr || !skops->sk) {
+        return;
+    }
+
+    tp = bpf_tcp_sock(skops->sk);
+    if (!tp) {
+        return;
+    }
+
+    /* These values don't necessarily make too much sense. We just want to
+     * provide any occasionally changing values in here.
+     */
+    swlat = tp->srtt_us * (1000 >> 3);
+    swlat = min(swlat, 0xFFFFFFu);
+    if (tp->rate_interval_us > 0) {
+        /* Assuming a 1 Gbit/s link speed to calculate a link utilization: */
+        intval =
+            tp->rate_delivered * tp->mss_cache / tp->rate_interval_us / 125u;
+        intval = min(TCP_INT_MAX_UTIL_PERCENT, intval);
+    }
+
+    iopt.id = 1;
+    if (intval <= TCP_INT_MAX_UTIL_PERCENT) {
+        iopt.intval = intval >> TCP_INT_UTIL_BITSHIFT;
+    } else {
+        intval = tp->snd_nxt - tp->snd_una; /* Wanna-be qdepth */
+        iopt.intval =
+            TCP_INT_MIN_QDEPTH_SCALED |
+            min(TCP_INT_MAX_UTIL_SCALED, (intval >> TCP_INT_QDEPTH_BITSHIFT));
+    }
+    iopt.swlat.u24 = htobe24l(swlat);
+
+    tcp_int_do_process_tcpopt(skops, istate, &iopt);
+}
+
 static inline void tcp_int_process_tcpopt(struct bpf_sock_ops *skops,
                                           struct tcp_int_state *istate)
 {
@@ -237,29 +323,7 @@ static inline void tcp_int_process_tcpopt(struct bpf_sock_ops *skops,
         return;
     }
 
-    /* Request echo only if there is an update */
-    if (iopt.id) {
-        istate->intvalecr = iopt.intval;
-        istate->idecr = iopt.id;
-        istate->swlatecr.u24 = iopt.swlat.u24;
-        istate->pending_ecr = true;
-    }
-
-    /* Ignore local events with no updates */
-    if (iopt.idecr == 0) {
-        return;
-    }
-
-    istate->id = iopt.idecr;
-    istate->qdepth = tcp_int_ival_to_qdepth(iopt.intvalecr);
-    istate->util = tcp_int_ival_to_util(iopt.intvalecr);
-
-    if (tcp_int_is_enabled() && tcp_int_is_mode_hist()) {
-        tcp_int_update_hists(skops, &iopt);
-    }
-    if (tcp_int_is_enabled() && tcp_int_is_mode_trace()) {
-        tcp_int_send_event(skops, &iopt);
-    }
+    tcp_int_do_process_tcpopt(skops, istate, &iopt);
 }
 
 SEC("sockops")
@@ -277,6 +341,9 @@ int tcp_int(struct bpf_sock_ops *skops)
         tcp_int_enable_tcp_opt_cb(skops);
         break;
     case BPF_SOCK_OPS_HDR_OPT_LEN_CB:
+        if (tcp_int_is_mode_mock()) {
+            tcp_int_mock_tcpopt(skops, istate);
+        }
         if (tcp_int_is_enabled() ||
             (tcp_int_is_ecr_enabled() && istate->pending_ecr)) {
             tcp_int_reserve_hdr_opt(skops, sizeof(struct tcp_int_opt));
