@@ -4,7 +4,7 @@
 USER_OBJ = tools/tcp_int.o
 USER_TARGETS = tools/tcp_int
 SKELETON_HEADERS = bpf/tcp_int.skel.h
-BPF_OBJS = $(@:.skel.h=.bpf.o)
+BPF_OBJS = $(SKELETON_HEADERS:.skel.h=.bpf.o)
 
 PREFIX ?= /usr/local
 INSTALLPATH = $(PREFIX)/lib/bpf/tcp-int
