@@ -25,7 +25,7 @@ $(SKELETON_HEADERS): %.skel.h: %.bpf.c $(wildcard ../include/*.h)
 	bpftool gen skeleton $($@_BPF_OBJ) > $@
 
 clean:
-	rm -f $(BPF_OBJS) $(USER_OBJ) $(USER_TARGETS)
+	rm -f $(BPF_OBJS) $(SKELETON_HEADERS) $(USER_OBJ) $(USER_TARGETS)
 
 install: $(USER_TARGETS)
 	install -d $(INSTALLPATH)
