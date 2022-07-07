@@ -11,7 +11,7 @@ INSTALLPATH = $(PREFIX)/lib/bpf/tcp-int
 LIBS = -lbpf
 CC := gcc
 
-.PHONY: clean
+.PHONY: all clean install uninstall
 
 all: $(USER_TARGETS)
 
