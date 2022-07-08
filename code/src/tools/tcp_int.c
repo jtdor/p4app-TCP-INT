@@ -28,6 +28,8 @@ static const char *tcp_int_doc =
     "related BPF programs with the default cgroup path\n"
     "    tcp_int load -c {path}                         # Loads tcp_int and "
     "related BPF programs with a custom cgroup2 mountpoint\n"
+    "    tcp_int load -m                                # Loads tcp_int in "
+    "mock mode (the host sends mock telemetry values)\n"
     "    tcp_int enable                                 # Enables tcp-int "
     "option handling\n"
     "    tcp_int trace                                  # Enables tcp-int and "
@@ -48,11 +50,6 @@ static const char *tcp_int_doc =
     "(default = disabled)\n"
     "    tcp_int events-disable                         # Disables perf "
     "events\n"
-    "    tcp_int mock-enable                            # Enables sending mock "
-    "values if no real values were received (default = disabled)\n"
-    "    tcp_int mock-disable                           # Disables sending "
-    "mock "
-    "values\n"
     "    tcp_int disable                                # Disables tcp-int "
     "option handling\n"
     "    tcp_int unload                                 # Unloads all tcp_int "
@@ -472,15 +469,22 @@ static int tcp_int_unload(void)
     return err;
 }
 
-static int tcp_int_load(const char *cg_path)
+static int tcp_int_load(const char *cg_path, bool mock_mode)
 {
     struct tcp_int_bpf *tcp_int_obj;
     bool pinned = false;
     int err;
 
-    tcp_int_obj = tcp_int_bpf__open_and_load();
+    tcp_int_obj = tcp_int_bpf__open();
     if (!tcp_int_obj) {
-        fprintf(stderr, "Failed to open and/or load main TCP-INT BPF object\n");
+        fprintf(stderr, "Failed to open main TCP-INT BPF object\n");
+        return TCP_INT_ERR_BPF;
+    }
+
+    tcp_int_obj->rodata->is_mode_mock = mock_mode;
+
+    if (tcp_int_bpf__load(tcp_int_obj)) {
+        fprintf(stderr, "Failed to load main TCP-INT BPF object\n");
         return TCP_INT_ERR_BPF;
     }
 
@@ -551,17 +555,6 @@ static int tcp_int_events_enable(bool enable)
                                   TCP_INT_CONFIG_TRUE);
     } else {
         return tcp_int_set_config(TCP_INT_CONFIG_KEY_TRACE_ENABLE,
-                                  TCP_INT_CONFIG_FALSE);
-    }
-}
-
-static int tcp_int_mock_enable(bool enable)
-{
-    if (enable) {
-        return tcp_int_set_config(TCP_INT_CONFIG_KEY_MOCK_ENABLE,
-                                  TCP_INT_CONFIG_TRUE);
-    } else {
-        return tcp_int_set_config(TCP_INT_CONFIG_KEY_MOCK_ENABLE,
                                   TCP_INT_CONFIG_FALSE);
     }
 }
@@ -877,6 +870,7 @@ static void tcp_int_sig_int(int signo) { tcp_int_exiting = 1; }
 int main(int argc, char **argv)
 {
     const char *cgroup_path = TCP_INT_CGROUP_PATH;
+    bool mock_mode = false;
     int rv = TCP_INT_OK;
 
     if (argc < 2) {
@@ -887,6 +881,8 @@ int main(int argc, char **argv)
     if (argc == 3) {
         if (!strcmp(argv[2], "-d")) {
             libbpf_set_print(libbpf_print_fn);
+        } else if (!strcmp(argv[2], "-m")) {
+            mock_mode = true;
         } else if (!strcmp(argv[2], "-c")) {
             fprintf(stderr, "Insufficient arguments provided\n");
             return TCP_INT_ERR_SYS;
@@ -905,7 +901,7 @@ int main(int argc, char **argv)
     }
 
     if (!strcmp(argv[1], "load")) {
-        rv = tcp_int_load(cgroup_path);
+        rv = tcp_int_load(cgroup_path, mock_mode);
     } else if (!strcmp(argv[1], "unload")) {
         rv = tcp_int_unload();
     } else if (!strcmp(argv[1], "enable")) {
@@ -949,10 +945,6 @@ int main(int argc, char **argv)
         rv = tcp_int_events_enable(true);
     } else if (!strcmp(argv[1], "events-disable")) {
         rv = tcp_int_events_enable(false);
-    } else if (!strcmp(argv[1], "mock-enable")) {
-        rv = tcp_int_mock_enable(true);
-    } else if (!strcmp(argv[1], "mock-disable")) {
-        rv = tcp_int_mock_enable(false);
     } else {
         show_help();
     }

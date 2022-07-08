@@ -58,6 +58,10 @@ struct {
     __type(value, struct tcp_int_hist_perid);
 } map_tcp_int_hists_perid SEC(".maps");
 
+/* Static configuration values only changeable before the BPF object is loaded:
+ */
+const volatile bool is_mode_mock;
+
 static inline void tcp_int_enable_tcp_opt_cb(struct bpf_sock_ops *skops)
 {
     int cb_flags;
@@ -72,17 +76,6 @@ static inline void tcp_int_reserve_hdr_opt(struct bpf_sock_ops *skops,
                                            __u32 size)
 {
     bpf_reserve_hdr_opt(skops, size, 0);
-}
-
-static inline int tcp_int_is_mode_mock(void)
-{
-    int key = TCP_INT_CONFIG_KEY_MOCK_ENABLE;
-    tcp_int_config_value *ptr_enabled;
-
-    ptr_enabled = bpf_map_lookup_elem(&map_tcp_int_config, &key);
-    if (ptr_enabled)
-        return ptr_enabled->u64;
-    return 0;
 }
 
 static inline void tcp_int_mock_tcpopt(struct bpf_sock_ops *skops,
@@ -131,7 +124,7 @@ static inline void tcp_int_add_tcpopt(struct bpf_sock_ops *skops,
     iopt.idecr = istate->idecr;
     iopt.swlatecr.u24 = istate->swlatecr.u24;
 
-    if (tcp_int_is_mode_mock()) {
+    if (is_mode_mock) {
         tcp_int_mock_tcpopt(skops, &iopt);
     }
 
