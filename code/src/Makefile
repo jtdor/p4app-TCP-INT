@@ -9,6 +9,7 @@ BPF_OBJS = $(SKELETON_HEADERS:.skel.h=.bpf.o)
 PREFIX ?= /usr/local
 INSTALLPATH = $(PREFIX)/lib/bpf/tcp-int
 LIBS = -lbpf
+BPFTOOL ?= /usr/sbin/bpftool
 CC := gcc
 VMLINUX ?= /sys/kernel/btf/vmlinux
 VMLINUX_H ?= ../include/vmlinux.h
@@ -24,11 +25,11 @@ $(SKELETON_HEADERS): %.skel.h: %.bpf.c $(wildcard ../include/*.h) $(VMLINUX_H)
 	$(eval $@_BPF_OBJ := $(@:.skel.h=.bpf.o))
 	clang $(CFLAGS) -I../include -g -target bpf -Wall -O3 -c $< -o $($@_BPF_OBJ)
 	llvm-strip -g $($@_BPF_OBJ)
-	bpftool gen skeleton $($@_BPF_OBJ) > $@
+	$(BPFTOOL) gen skeleton $($@_BPF_OBJ) > $@
 
 # Only building this if VMLINUX_H was not set to a different path by the user
 ../include/vmlinux.h: $(VMLINUX)
-	bpftool btf dump file $< format c > $@
+	$(BPFTOOL) btf dump file $< format c > $@
 
 clean:
 	rm -f $(BPF_OBJS) $(SKELETON_HEADERS) $(USER_OBJ) $(USER_TARGETS) ../include/vmlinux.h
