@@ -98,11 +98,10 @@ static inline void tcp_int_mock_tcpopt(struct bpf_sock_ops *skops,
         /* Assuming a 1 Gbit/s link speed to calculate a link utilization: */
         intval =
             tp->rate_delivered * tp->mss_cache / tp->rate_interval_us / 125u;
-        intval = min(TCP_INT_MAX_UTIL_PERCENT, intval);
     }
 
     iopt->id = 1;
-    if (intval <= TCP_INT_MAX_UTIL_PERCENT) {
+    if (intval < TCP_INT_MAX_UTIL_PERCENT) {
         iopt->intval = intval >> TCP_INT_UTIL_BITSHIFT;
     } else {
         intval = tp->snd_nxt - tp->snd_una; /* Wanna-be qdepth */
