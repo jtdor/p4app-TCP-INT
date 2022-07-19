@@ -20,6 +20,7 @@ struct tcp_int_state {
     tcp_int_id idecr;      /* ID to be echoed back (network order) */
     __u32 id;              /* ID of most congested switch on data path */
     __u32 qdepth;          /* Queue depth in data path */
+    __u32 util;            /* Link utilization in data path */
     tcp_int_lat swlatecr;  /* Sum of switch latencies on data path */
 };
 
