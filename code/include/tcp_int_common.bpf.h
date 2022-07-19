@@ -18,6 +18,7 @@ struct tcp_int_state {
     bool pending_ecr;         /* Indicates pending echo request */
     tcp_int_val intvalecr;    /* INT value to be echoed back (network order) */
     tcp_int_id idecr;         /* ID to be echoed back (network order) */
+    __u32 id;                 /* ID of most congested switch on data path */
     __u32 qdepth;             /* Queue depth in data path */
     tcp_int_latecr hoplatecr; /* Sum of hop latencies on data path */
 };
