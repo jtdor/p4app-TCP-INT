@@ -582,8 +582,8 @@ static void tcp_int_handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 
     inet_ntop(e->family, &e->saddr, saddr, sizeof(saddr));
     inet_ntop(e->family, &e->daddr, daddr, sizeof(daddr));
-    printf("%11.6f, %15s:%5d, %15s:%5d, %8d, %8d, %6d, %8lld, %7u, %12u, %9f, "
-           "%3d\n",
+    printf("%11.6f, %15s:%5u, %15s:%5u, %8u, %8u, %6u, %8llu, %7u, %12u, %9f, "
+           "%3u\n",
            (e->ts_us - start_ts) / 1000000.0, saddr, e->sport, daddr, e->dport,
            (e->srtt_us >> 3), (e->snd_cwnd * e->mss), e->lost_out,
            tcp_int_get_tp(e), tcp_int_ival_to_util(e->intval),
