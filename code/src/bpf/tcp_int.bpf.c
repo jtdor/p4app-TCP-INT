@@ -250,6 +250,7 @@ static inline void tcp_int_process_tcpopt(struct bpf_sock_ops *skops,
         return;
     }
 
+    istate->id = iopt.idecr;
     istate->qdepth = tcp_int_ival_to_qdepth(iopt.intvalecr);
 
     if (tcp_int_is_enabled() && tcp_int_is_mode_hist()) {
