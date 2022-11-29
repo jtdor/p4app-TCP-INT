@@ -22,6 +22,7 @@ struct tcp_int_state {
     __u32 qdepth;          /* Queue depth in data path */
     __u32 util;            /* Link utilization in data path */
     tcp_int_lat swlatecr;  /* Sum of switch latencies on data path */
+    __u32 swlat;           /* Sum of switch latencies on data path (not shifted) */
 };
 
 /* Attaches INT state to socket */
