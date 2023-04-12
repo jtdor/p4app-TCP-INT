@@ -761,7 +761,11 @@ static int tcp_int_print_hists_pertype(enum tcp_int_hist_type type_min,
 static int tcp_int_trace(void)
 {
     tcp_int_config_value trace_cfg_val_before;
+    /* The LIBBPF_*_VERSION macros did not exist before libbpf version 0.6. */
+#if !(defined(LIBBPF_MAJOR_VERSION) && defined(LIBBPF_MINOR_VERSION)) || \
+        (LIBBPF_MAJOR_VERSION < 1 && LIBBPF_MINOR_VERSION < 6)
     struct perf_buffer_opts pb_opts;
+#endif
     struct perf_buffer *pb = NULL;
     int err = TCP_INT_OK;
 
@@ -771,10 +775,18 @@ static int tcp_int_trace(void)
         goto cleanup;
     }
 
+    /* The LIBBPF_*_VERSION macros did not exist before libbpf version 0.6. */
+#if !(defined(LIBBPF_MAJOR_VERSION) && defined(LIBBPF_MINOR_VERSION)) || \
+        (LIBBPF_MAJOR_VERSION < 1 && LIBBPF_MINOR_VERSION < 6)
     pb_opts.sample_cb = tcp_int_handle_event;
     pb_opts.lost_cb = tcp_int_handle_lost_events;
     pb = perf_buffer__new(tcp_int_get_fd(TCP_INT_OBJECT_MAP_EVENTS),
                           TCP_INT_PERF_BUFFER_PAGES, &pb_opts);
+#else
+    pb = perf_buffer__new(tcp_int_get_fd(TCP_INT_OBJECT_MAP_EVENTS),
+                          TCP_INT_PERF_BUFFER_PAGES, tcp_int_handle_event,
+                          tcp_int_handle_lost_events, NULL, NULL);
+#endif
     err = libbpf_get_error(pb);
     if (err) {
         fprintf(stderr, "Failed to open perf buffer: %d\n", err);
